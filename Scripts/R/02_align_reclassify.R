@@ -45,13 +45,13 @@ st_geometry(public.land.corrected) = g
 
 public.land.valid <- st_make_valid(public.land.corrected)
 
-st_write(public.land.valid[,c(1:13, 23)], here::here('data/ProcessedData/studypubliclands.shp'), append=FALSE)
+st_write(public.land.valid[,c(1:13, 23)], here::here('data/ProcessedData/shapefiles/studypubliclands.shp'), append=FALSE)
 
 fed.land <- public.land.valid %>% 
   filter(., Mang_Type=="FED")
 
 
-st_write(fed.land[,c(1:13, 23)], here::here('data/ProcessedData/fedlands.shp'), append=FALSE)
+st_write(fed.land[,c(1:13, 23)], here::here('data/ProcessedData/shapefiles/fedlands.shp'), append=FALSE)
 
 unit.nm <- c("Yellowstone National Park", "Weminuche Wilderness")
 
@@ -59,16 +59,16 @@ study.areas <- public.land.corrected %>%
   filter(., Unit_Nm %in% unit.nm) %>% 
   aggregate(., by = list(.$Unit_Nm), FUN = dplyr::first)
 
-st_write(study.areas[,c(1:13, 23)], here::here('data/ProcessedData/studyPAs.shp'), append = FALSE)
+st_write(study.areas[,c(1:13, 23)], here::here('data/ProcessedData/shapefiles/studyPAs.shp'), append = FALSE)
 
 study.area.point <- st_point_on_surface(study.areas) #generates a strange point for FCRNR
 study.area.centroid <- st_centroid(study.areas)
-st_write(study.area.centroid[,c(1:13, 23)], here::here('data/ProcessedData/studyPAcentroids.shp'), append = FALSE)
+st_write(study.area.centroid[,c(1:13, 23)], here::here('data/ProcessedData/shapefiles/studyPAcentroids.shp'), append = FALSE)
 
 
 # Crop rasters to study area and resample to 1km ----------------------------------------------
 house.val <- raster::raster(here::here("data/OriginalData/LandValue/places_fmv_all.tif"))
-study.pas <- st_read( here::here('data/ProcessedData/studyPAs.shp'))
+study.pas <- st_read( here::here('data/ProcessedData/shapefiles/studyPAs.shp'))
 
 padus.buf <-  study.pas %>%  
   st_buffer(., dist = 100000) %>% 
@@ -85,7 +85,7 @@ house.resamp <- raster(house.resample)
 house.res.test <- house.resamp 
 
 #set public land cost to 0
-public.land <- st_read(here::here('Data/ProcessedData/studypubliclands.shp')) %>% 
+public.land <- st_read(here::here('Data/ProcessedData/shapefiles/studypubliclands.shp')) %>% 
   st_transform(., proj4string(house.resamp)) %>% 
   as(., "Spatial")
 
@@ -94,8 +94,8 @@ house.res.test[public.land] <- 1 #set public land costs to 0 because value is lo
 
 housing.rescale <- (house.res.test - cellStats(house.res.test, min))/(cellStats(house.res.test, max) - cellStats(house.res.test, min))
 
-raster::writeRaster(housing.rescale, here::here("data/ProcessedData/landval_crop_resamp.tif"), overwrite=TRUE)
-raster::writeRaster(house.res.test, here::here("data/ProcessedData/landval_crop_unscaled.tif"), overwrite=TRUE)
+raster::writeRaster(housing.rescale, here::here("data/ProcessedData/rasters/landval_crop_resamp.tif"), overwrite=TRUE)
+raster::writeRaster(house.res.test, here::here("data/ProcessedData/rasters/landval_crop_unscaled.tif"), overwrite=TRUE)
 
 # Crop HMI to study area and resample to 1km--------------------------------------------------
 
@@ -109,7 +109,7 @@ hmi.crop <- crop(hmi, padus.buf)
 hmi.rast <- terra::rast(hmi.crop)
 hmi.resample <- resample(hmi.rast, terra::rast(housing.rescale), method="bilinear")
 hmi.resamp <- raster(hmi.resample)
-writeRaster(hmi.resamp, here::here('data/ProcessedData/hmi_crop_resamp.tif'), overwrite=TRUE)
+writeRaster(hmi.resamp, here::here('data/ProcessedData/rasters/hmi_crop_resamp.tif'), overwrite=TRUE)
 
 # Crop slope to study area and resample to 1km ----------------------------
 
@@ -126,7 +126,7 @@ padus.buf <- as(padus.buf, "sf") %>%
 slope.crop <- terra::crop(slope.proj, padus.buf)
 slope.resample <- terra::resample(slope.crop, terra::rast(housing.rescale))
 slope.resamp <- raster(slope.resample)
-writeRaster(slope.resamp, here::here('data/ProcessedData/slope_crop_resamp.tif'), overwrite=TRUE)
+writeRaster(slope.resamp, here::here('data/ProcessedData/rasters/slope_crop_resamp.tif'), overwrite=TRUE)
 
 # Crop wolf prefs to study area and resample to 1km ----------------------------
 wolf.increase <- rast(here::here('data/OriginalData/wolves/wolf.increase.tif'))
@@ -141,7 +141,7 @@ wolf.inc.proj <- terra::resample(wolf.inc.crop, terra::rast(housing.rescale), me
 wolf.inc.focal <- focal(wolf.inc.proj, w = 9, fun = "mean", na.rm = TRUE, na.policy = "only") #smoothing things out a bit
 wolf.resist <-1 - wolf.inc.focal
 
-writeRaster(wolf.resist, here::here('data/ProcessedData/wolf_crop_resamp.tif'), overwrite=TRUE)
+writeRaster(wolf.resist, here::here('data/ProcessedData/rasters/wolf_crop_resamp.tif'), overwrite=TRUE)
 
 
 # Cattle numbers ----------------------------------------------------------
@@ -189,11 +189,11 @@ cattle.crop <- crop(cattle.sp, housing.rescale)
 cattle.rst <- terra::rasterize(cattle.crop, housing.rescale, field="Value")
 log.cattle <- log(cattle.rst, 10)
 cattle.rescale <- (log.cattle - cellStats(log.cattle, min))/(cellStats(log.cattle, max) - cellStats(log.cattle, min))
-writeRaster(cattle.rescale, here::here('data/ProcessedData/cattle_num.tif'), overwrite = TRUE)
+writeRaster(cattle.rescale, here::here('data/ProcessedData/rasters/cattle_num.tif'), overwrite = TRUE)
 
 
 # institutional capacity --------------------------------------------------
-fedlands <- st_read("Data/ProcessedData/fedlands.shp")
+fedlands <- st_read("Data/ProcessedData/shapefiles/fedlands.shp")
 
 unique(fedlands$Mang_Name) #Use to generate manager names for resistance reclass
 
@@ -209,7 +209,7 @@ fedlands.resist <- fedlands %>%
 fedlands.crop <- crop(fedlands.resist, housing.rescale)
 fedlands.resist.rst <- terra::rasterize(fedlands.crop, housing.rescale, field="resist")
 fedlands.resist.rst[is.na(fedlands.resist.rst)] <- 0.5
-writeRaster(fedlands.resist.rst, here::here('data/ProcessedData/federal_instcap_rast.tif'), overwrite=TRUE)
+writeRaster(fedlands.resist.rst, here::here('data/ProcessedData/rasters/federal_instcap_rast.tif'), overwrite=TRUE)
 
 
 # Institutional Capacity Scenario -----------------------------------------
@@ -223,6 +223,6 @@ fedlands.resist <- fedlands %>%
 fedlands.crop <- crop(fedlands.resist, housing.rescale)
 fedlands.resist.rst <- terra::rasterize(fedlands.crop, housing.rescale, field="resist")
 fedlands.resist.rst[is.na(fedlands.resist.rst)] <- 0.5
-writeRaster(fedlands.resist.rst, here::here('data/ProcessedData/federal_instcap_rast_scnenario.tif'), overwrite=TRUE)
+writeRaster(fedlands.resist.rst, here::here('data/ProcessedData/rasters/federal_instcap_rast_scnenario.tif'), overwrite=TRUE)
 
 
