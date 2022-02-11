@@ -8,16 +8,16 @@ library(magrittr)
 # Load top paths function -------------------------------------------------
 
 
-source(here::here("scripts/R/04_fun_klcp.R"))
+source(here::here("scripts/R/04_fun_K_lcp.R"))
 
 
 # Load Data ---------------------------------------------------------------
 
-hmi <- raster(here::here("data/ProcessedData/hmi_crop_resamp.tif"))
-slope <- raster(here::here("data/ProcessedData/slope_crop_resamp.tif"))
-imp.fuz.sum1 <- raster(here::here('data/ProcessedData/imp_fuz_sum_nohouse.tif'))
+hmi <- raster(here::here("data/ProcessedData/rasters/hmi_crop_resamp.tif"))
+slope <- raster(here::here("data/ProcessedData/rasters/slope_crop_resamp.tif"))
+imp.fuz.sum1 <- raster(here::here('data/ProcessedData/rasters/imp_fuz_sum_nohouse.tif'))
 #imp.fuz.sum2 <- raster(here::here('data/ProcessedData/imp_fuz_sum.tif'))
-house.val <- raster(here::here("data/ProcessedData/landval_crop_unscaled.tif"))
+house.val <- raster(here::here("data/ProcessedData/rasters/landval_crop_unscaled.tif"))
 # Create resistance surfaces  ---------------------------------------------
 
 biophys.resist <- (hmi + 1)^10 + (slope/4) #Dickson et al 2017
@@ -30,14 +30,14 @@ implementation.resist1 <- (imp.fuz.sum1 + 1)^10 + (house.val/4)
 writeRaster(biophys.resist, here::here("data/ProcessedData/ResistanceSurfaces/biophys_resist.tif"), overwrite=TRUE)
 writeRaster(implementation.resist1, here::here("data/ProcessedData/ResistanceSurfaces/implement_resist.tif"), overwrite=TRUE)
 
-origins <- st_read(here::here("data/ProcessedData/studyPAcentroids.shp")) %>% 
+origins <- st_read(here::here("data/ProcessedData/shapefiles/studyPAcentroids.shp")) %>% 
   dplyr::filter(., Unit_Nm == "Weminuche Wilderness" | Unit_Nm == "Yellowstone National Park") %>%
   st_transform(. , crs(biophys.resist))
 
 origins$ID <- c(1,2)
 
 pa.rast <- rasterize(as(origins, "Spatial"), biophys.resist, field="ID")
-writeRaster(pa.rast, here::here("data/ProcessedData/pa_locs.tif"), overwrite=TRUE)
+writeRaster(pa.rast, here::here("data/ProcessedData/rasters/pa_locs.tif"), overwrite=TRUE)
 
 
 # Create Transition Matrix ------------------------------------------------
@@ -55,10 +55,10 @@ saveRDS(social.tr1, here::here('data/ProcessedData/TransitionLayers/socialtrans1
 #saveRDS(social.tr2, here::here('Data/ProcessedData/TransitionLayers/socialtrans2.rds'))
 # Estimate k low cost paths -----------------------------------------------
 
-origins <- st_read(here::here("data/ProcessedData/studyPAcentroids.shp")) %>% 
+origins <- st_read(here::here("data/ProcessedData/shapefiles/studyPAcentroids.shp")) %>% 
   dplyr::filter(., Unit_Nm == "Weminuche Wilderness") %>% 
   as(. , "Spatial")
-goals <- st_read(here::here("data/ProcessedData/studyPAcentroids.shp")) %>% 
+goals <- st_read(here::here("data/ProcessedData/shapefiles/studyPAcentroids.shp")) %>% 
   dplyr::filter(., Unit_Nm == "Yellowstone National Park") %>% 
   as(. , "Spatial")
 origin.proj <- spTransform(origins, crs(biophys.resist))
