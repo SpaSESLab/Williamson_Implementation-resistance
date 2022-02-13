@@ -3,3 +3,6 @@
 .RData
 .Ruserdata
 .secrets
+*.grd
+*.vrt
+*.gri
