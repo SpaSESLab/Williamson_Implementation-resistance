@@ -37,7 +37,7 @@ gen_top_paths <- function(tr, resist,  numpath, bufdist, orig, goal){
       result.list[[z]] <- result.buf
       update <- tr
       adj <- raster::adjacent(result.buf, Which(!is.na(result.buf), cells = TRUE), directions=16)
-      transitionMatrix(update)[adj] <- cellStats(raster(tr), min)
+      transitionMatrix(update)[adj] <- NA
       update.res.list[[z]] <- update
     }else{
       y <- transitionMatrix(update.res.list[[z-1]])
@@ -62,7 +62,7 @@ gen_top_paths <- function(tr, resist,  numpath, bufdist, orig, goal){
       result.list[[z]] <- result.buf
       update <- update.res.list[[z-1]] 
       adj <- raster::adjacent(result.buf, Which(!is.na(result.buf), cells = TRUE), directions=16)
-      transitionMatrix(update)[adj] <- cellStats(raster(tr), min)
+      transitionMatrix(update)[adj] <- NA
       update.res.list[[z]] <- update
     }
   }
