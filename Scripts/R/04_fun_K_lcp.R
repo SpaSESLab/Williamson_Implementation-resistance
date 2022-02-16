@@ -35,9 +35,10 @@ gen_top_paths <- function(tr, resist,  numpath, bufdist, orig, goal){
       result.rast <- raster(result)
       result.buf <- raster::buffer(result.rast, width = bufdist, doEdge=TRUE)
       result.list[[z]] <- result.buf
+      result.buf.2 <- raster::buffer(result.rast, width = 2 * bufdist, doEdge=TRUE)
       update <- tr
-      adj <- raster::adjacent(result.buf, Which(!is.na(result.buf), cells = TRUE), directions=16)
-      transitionMatrix(update)[adj] <- NA
+      adj <- raster::adjacent(result.buf.2, Which(!is.na(result.buf.2), cells = TRUE), directions=16)
+      transitionMatrix(update)[adj] <- cellStats(raster(tr), min)
       update.res.list[[z]] <- update
     }else{
       y <- transitionMatrix(update.res.list[[z-1]])
@@ -60,9 +61,10 @@ gen_top_paths <- function(tr, resist,  numpath, bufdist, orig, goal){
       result.rast <- raster(result)
       result.buf <- raster::buffer(result.rast, width = bufdist, doEdge=TRUE)
       result.list[[z]] <- result.buf
+      result.buf.2 <- raster::buffer(result.rast, width = 2 * bufdist, doEdge=TRUE)
       update <- update.res.list[[z-1]] 
-      adj <- raster::adjacent(result.buf, Which(!is.na(result.buf), cells = TRUE), directions=16)
-      transitionMatrix(update)[adj] <- NA
+      adj <- raster::adjacent(result.buf.2, Which(!is.na(result.buf.2), cells = TRUE), directions=16)
+      transitionMatrix(update)[adj] <- cellStats(raster(tr), min)
       update.res.list[[z]] <- update
     }
   }
