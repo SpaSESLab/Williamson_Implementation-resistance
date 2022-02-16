@@ -85,17 +85,18 @@ current.dens <- dist.cln %>%
   dplyr::group_by(., LCPID) %>%
   dplyr::filter(., startsWith(LCPID, "b")) %>% 
   dplyr::summarise(., sum.current = round(sum(biophys.cur, na.rm = TRUE), 2)) %>%
-  
+  dplyr::mutate(., ID = str_remove_all( LCPID, fixed("b"))) %>% 
+  dplyr::select(., c(ID, sum.current)) %>% 
   flextable::flextable() %>% 
-  flextable::set_header_labels(., LCPID = "Cost Rank", sum.current = "Total Current") %>% 
-  flextable::as_raster(zoom = 4)
+  flextable::set_header_labels(., ID = "Cost Rank", sum.current = "Total Current") %>% 
+  flextable::as_raster(zoom = 3)
 
 
-dens.plot <- ggplot(current.dens, aes(x=LCPID, y= sum.current, color=LCPID), size=8) +
-  scale_color_locuszoom() +
-  geom_point(stat = "identity") +
-  coord_flip() +
-  theme_cowplot()
+#dens.plot <- ggplot(current.dens, aes(x=LCPID, y= sum.current, color=LCPID), size=8) +
+#  scale_color_locuszoom() +
+#  geom_point(stat = "identity") +
+#  coord_flip() +
+#  theme_cowplot()
 
 
 # Estimate cost.ratio -----------------------------------------------------
@@ -119,17 +120,19 @@ dist.group <- dist.90 %>%
   dplyr::filter(.,  startsWith(LCPID, "b")) %>% 
   dplyr::summarise(., mn_ratio = mean(ratio, na.rm = TRUE), 
                    sd_ratio = sd(ratio, na.rm=TRUE),
-                   mean_delta = mean(delta_bio.costdist, na.rm=TRUE))
+                   mean_delta = mean(delta_bio.costdist, na.rm=TRUE)) %>% 
+  dplyr::mutate(., ID = str_remove_all( LCPID, fixed("b")))
+  
 
 
-p <- ggplot(data = dist.group, mapping = aes(x = reorder(LCPID,mean_delta), 
-                                             y = mn_ratio, color = log(mean_delta))) +
+p <- ggplot(data = dist.group, mapping = aes(x = ID, 
+                                             y = mn_ratio, color = log(mean_delta, 10))) +
   scale_color_viridis_c(direction = -1, begin= 0, end =0.8)
 
-p + geom_pointrange(mapping = aes(ymin = mn_ratio - sd_ratio,
+ratio.plot <- p + geom_pointrange(mapping = aes(ymin = mn_ratio - sd_ratio,
                                   ymax = mn_ratio + sd_ratio)) +
-  labs(x= "", y= "Cost ratio") + 
-  guides(color = guide_colorbar(title = "Log(biophysical \ncost difference)")) +
+  labs(x= "Cost Rank", y= "Cost ratio") + 
+  guides(color = guide_colorbar(title = "\u0394 log(biophysical \ncost)")) +
   coord_flip() + 
   theme_cowplot()
 
@@ -171,7 +174,7 @@ hills3 <- focal(hill2, w=matrix(1/9, nc=3, nr=3), mean)
 
 # Get vectors for maps ----------------------------------------------------
 
-PAs <- st_read(here::here("Data/ProcessedData/studyPAs.shp")) %>% 
+PAs <- st_read(here::here("Data/ProcessedData/shapefiles/studyPAs.shp")) %>% 
   dplyr::filter(. , Unit_Nm == "Yellowstone National Park" | Unit_Nm == "Weminuche Wilderness") %>% 
   st_transform(. , crs = crs(dist.stack))
 
@@ -184,7 +187,6 @@ conus <-  tigris::states() %>%
   dplyr::filter(,, !STUSPS %in% c("AK","AS", "HI", "GU", "VI", "DC", "PR", "MP")) %>% 
   st_transform(., crs(dist.stack))
 
-sts.crop <- crop(sts, dist.stack)
 
 pa.cents <- rbind(as(origin.proj,"sf"), as(goals.proj, "sf"))
 pa.cents$lab <- c("Weminche \n Wilderness Area", "Yellowstone \n National Park")
@@ -192,11 +194,16 @@ pa.cents$lab <- c("Weminche \n Wilderness Area", "Yellowstone \n National Park")
 library(purrr)
 library(dplyr)
 
-b_df <- biophys.cs %>%
-  projectRaster(., res=300, crs = crs(dist.stack)) %>%
+cs.proj <- biophys.cs %>%
+  projectRaster(., res=300, crs = crs(dist.stack)) 
+
+b_df <- cs.proj %>%
   rasterToPoints %>%
   as.data.frame() %>%
   `colnames<-`(c("x", "y", "biophys"))
+
+sts.crop <- crop(sts, cs.proj)
+
 
 biophys.lcps <- lapply(biophys.lst, function (x) rasterToPolygons(x=x, n=8, dissolve = TRUE))
 
@@ -228,11 +235,15 @@ p.cs <- RStoolbox::ggR(hills3) +
   geom_sf(data = PAs, fill = "forestgreen") +
   geom_sf(data = as(sts.crop, "sf"), fill = NA, color="white")+
   ggrepel::geom_text_repel(data = pa.cents, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = -40000 , nudge_y = c(80000,90000), fontface="bold", color = "white")+
-  guides(fill = guide_colorbar(nbin = 8, direction = "horizontal", title.position = "top", 
-                               label.position="bottom", title = "Current flow"), 
-         color = guide_legend(direction = "horizontal", title.position = "top", 
-                              label.position="bottom", title = "Cost rank"))+
-  theme_map() + theme(legend.position = "bottom")
+  guides(fill = guide_colorbar(nbin = 8,  title.position = "left", 
+                               label.position="right", title = "Current flow"), 
+         color = guide_legend(title.position = "left", 
+                              label.position="right", title = "Cost rank"))+
+  theme_map() + theme(legend.position = "left", 
+                      legend.box = "vertical", 
+                      legend.title = element_text(angle = 90),
+                      plot.margin = unit(c(5.5, 1.5, 0, 1.5), units = "pt"),
+                      legend.box.margin = unit(c(0, 0.1, 0.1, 0.1), units = "pt"))
 
 inset <- ggplot()+
   geom_sf(data=conus, fill="white") +
@@ -240,6 +251,44 @@ inset <- ggplot()+
   theme_map() +
   theme(panel.background = element_rect(fill = "gray", color = "black"),
         plot.background = element_rect(fill = NA, color = NA))  
+
+
+p.combined <- ggdraw(p.cs) +
+  draw_plot(inset, x = 0.65, y = 0,  
+            width = 0.2, height = 0.1)
+
+panel_a <- plot_grid(p.combined,
+                     nrow = 1,
+                     labels = c("A)"),
+                     label_size = 16,
+                     label_fontfamily = "sans")
+
+p2 <- ggplot() + 
+  theme_void() +
+  theme(plot.margin = unit(c(1.5, 1.5, 0, 1.5), units = "pt")) +
+  annotation_custom(grid::rasterGrob(current.dens), xmin=-0.07, xmax=0.5, ymin=-Inf, ymax=Inf)
+
+
+panel_b <- plot_grid(ratio.plot, p2,
+                               # A negative rel_height shrinks space between elements
+                               rel_heights = c( 1,1),
+                               align = "v",
+                               axis = "l",
+                               ncol = 1,
+                               labels = c("B)","C)"),
+                               label_size = 16,
+                               label_fontfamily = "sans")
+
+
+panel_ABC <- plot_grid(panel_a, panel_b,
+                     rel_widths = c(3,2),
+                     nrow = 1)
+
+cowplot::save_plot(here::here("plots/fig1.png"), plot = panel_ABC, base_height = 7.5, base_width = 10)
+
+combined <- p.combined | ratio.plot + patchwork::plot_layout(widths = c(2, 1))
+ggsave(here::here("plots/fig1.png"),  plot = combined, height = 7, width = 10, units = "in", dpi = "screen")
+
 # Plot bivariate raster ---------------------------------------------------
 
 # convert gridded raster dato dataframe
