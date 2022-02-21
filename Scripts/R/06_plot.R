@@ -10,6 +10,7 @@ library(classInt)
 library(cowplot)
 library(ggsci)
 library(stringr)
+
 # Load transition layers --------------------------------------------------
 social.tr1 <- readRDS(here::here('Data/ProcessedData/TransitionLayers/socialtrans1.rds'))
 biophys.tr <- readRDS(here::here('Data/ProcessedData/TransitionLayers/biophystrans.rds'))
@@ -187,6 +188,7 @@ conus <-  tigris::states() %>%
   dplyr::filter(,, !STUSPS %in% c("AK","AS", "HI", "GU", "VI", "DC", "PR", "MP")) %>% 
   st_transform(., crs(dist.stack))
 
+sts.crop <- crop(sts, cs.proj)
 
 pa.cents <- rbind(as(origin.proj,"sf"), as(goals.proj, "sf"))
 pa.cents$lab <- c("Weminche \n Wilderness Area", "Yellowstone \n National Park")
@@ -202,7 +204,6 @@ b_df <- cs.proj %>%
   as.data.frame() %>%
   `colnames<-`(c("x", "y", "biophys"))
 
-sts.crop <- crop(sts, cs.proj)
 
 
 biophys.lcps <- lapply(biophys.lst, function (x) rasterToPolygons(x=x, n=8, dissolve = TRUE))
@@ -290,7 +291,7 @@ combined <- p.combined | ratio.plot + patchwork::plot_layout(widths = c(2, 1))
 ggsave(here::here("plots/fig1.png"),  plot = combined, height = 7, width = 10, units = "in", dpi = "screen")
 
 # Plot bivariate raster ---------------------------------------------------
-
+library(tidyr) #don't load this initially as it masks all versions of extract
 # convert gridded raster dato dataframe
 b_df <- biophys.norm %>%
   projectRaster(., res=300, crs = crs(dist.stack)) %>%
@@ -369,7 +370,7 @@ legend_5 <- tibble(
   "2 - 1" = "#000540",
   "1 - 1" = "#000500"
 ) %>%
-  gather("group", "fill")
+  tidyr::gather("group", "fill")
 
 legend_5$fill[1:5] <- col.matrix[10,seq(10, 0, -2)]
 legend_5$fill[6:10] <- col.matrix[8,seq(10, 0, -2)]
@@ -397,19 +398,7 @@ p1 <- RStoolbox::ggR(hills3) +
   ggrepel::geom_text_repel(data = pa.cents, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = -40000 , nudge_y = c(80000,90000), fontface="bold", color = "white")+
   theme_map() +
   theme(legend.position = 'none',
-        plot.subtitle = element_text(
-          color = "grey30",
-          size = 40,
-          hjust = 0.1),
-        plot.title = element_text(
-          color = "grey30",
-          size = 70,
-          hjust = 0.1),
-        plot.caption = element_text(
-          color = "grey30",
-          size = 25,
-          lineheight = 0.3)
-  )
+        plot.margin = unit(c(5.5, 1.5, 0, 1.5), units = "pt"))
 
 p2 <- legend_5 %>%
   separate(group,
@@ -434,21 +423,16 @@ p2 <- legend_5 %>%
     plot.background = element_rect(fill="white", color = "black")) +
   coord_fixed()
 
-p3 <- ggplot()+
-  geom_sf(data=conus, fill="white") +
-  geom_sf(data =st_as_sfc(st_bbox(dist.stack)), fill=NA, color="red") +
-  theme_map() +
-  theme(panel.background = element_rect(fill = "gray", color = "black"),
-        plot.background = element_rect(fill = NA, color = NA))
+p.combined <- ggdraw(p1) +
+  draw_plot(inset, x = 0.48, y = 0,  
+            width = 0.2, height = 0.1)
 
 # create final layout
-p <- ggdraw(p1)  +
-  draw_plot(p2, x = 0.74, y = 0.73, 
-            width = 0.26, height = 0.26) +
-  draw_plot(p3, x = 0.72, y = 0,  
-            width = 0.3, height = 0.2)
+p <- ggdraw(p.combined)  +
+  draw_plot(p2, x = 0.53, y = 0.74, 
+            width = 0.26, height = 0.26) 
 
 
-ggsave(here::here("plots/combined.png"),  plot = p, height = 7, width = 5, units = "in", dpi = "screen")
+cowplot::save_plot(here::here("plots/fig2.png"),  plot = p, base_height = 7.5, units = "in", dpi = "screen")
 
 
