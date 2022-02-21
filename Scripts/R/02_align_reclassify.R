@@ -191,7 +191,10 @@ log.cattle <- log(cattle.rst, 10)
 cattle.rescale <- (log.cattle - cellStats(log.cattle, min))/(cellStats(log.cattle, max) - cellStats(log.cattle, min))
 writeRaster(cattle.rescale, here::here('data/ProcessedData/rasters/cattle_num.tif'), overwrite = TRUE)
 
-
+# livestock offset scenario -----------------------------------------------
+#instantiate scenario that reduces the resistance due to livestock as dominant land use by 10%
+cattle.rescale.scenario <- 0.85*cattle.rescale
+writeRaster(cattle.rescale.scenario, here::here('data/ProcessedData/rasters/cattle_num_resc_scen.tif'), overwrite = TRUE)
 # institutional capacity --------------------------------------------------
 fedlands <- st_read("Data/ProcessedData/shapefiles/fedlands.shp")
 
@@ -224,5 +227,8 @@ fedlands.crop <- crop(fedlands.resist, housing.rescale)
 fedlands.resist.rst <- terra::rasterize(fedlands.crop, housing.rescale, field="resist")
 fedlands.resist.rst[is.na(fedlands.resist.rst)] <- 0.5
 writeRaster(fedlands.resist.rst, here::here('data/ProcessedData/rasters/federal_instcap_rast_scnenario.tif'), overwrite=TRUE)
+
+
+
 
 
