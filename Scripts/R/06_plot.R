@@ -12,14 +12,16 @@ library(ggsci)
 library(stringr)
 
 # Load transition layers --------------------------------------------------
-social.tr1 <- readRDS(here::here('Data/ProcessedData/TransitionLayers/socialtrans1.rds'))
-biophys.tr <- readRDS(here::here('Data/ProcessedData/TransitionLayers/biophystrans.rds'))
-
+social.tr1 <- readRDS(here::here('data/ProcessedData/TransitionLayers/socialtrans1.rds'))
+biophys.tr <- readRDS(here::here('data/ProcessedData/TransitionLayers/biophystrans.rds'))
+jurisdiction.tr <- readRDS(here::here('data/ProcessedData/TransitionLayers/socialtrans_jurisdiction.rds'))
+cattle.tr <- readRDS(here::here('data/ProcessedData/TransitionLayers/socialtrans_cattle.rds'))
 
 # Load Resistance surfaces ------------------------------------------------
-biophys.resist <- raster(here::here("Data/ProcessedData/ResistanceSurfaces/biophys_resist.tif"))
-implementation.resist1 <- raster(here::here("Data/ProcessedData/ResistanceSurfaces/implement_resist.tif"))
-
+biophys.resist <- raster(here::here("data/ProcessedData/ResistanceSurfaces/biophys_resist.tif"))
+implementation.resist1 <- raster(here::here("data/ProcessedData/ResistanceSurfaces/implement_resist.tif"))
+implementation.resist2 <-  raster(here::here('data/ProcessedData/ResistanceSurfaces/implement_resist_jurisdiction.tif'))
+implementation.resist3 <-  raster(here::here('data/ProcessedData/ResistanceSurfaces/implement_resist_cattle.tif'))
 # Load centroids ----------------------------------------------------------
 origins <- st_read(here::here("Data/ProcessedData/shapefiles/studyPAcentroids.shp")) %>% 
   dplyr::filter(., Unit_Nm == "Weminuche Wilderness") %>% 
@@ -38,11 +40,14 @@ biophys <- readRDS(here::here('Data/ProcessedData/TransitionLayers/biophystop5.r
 # load Circuitscape results -----------------------------------------------
 
 
-biophys.cs <- raster(here::here('Data/ProcessedData/biophys/biophys_cum_curmap.asc'))
-implement.cs <- raster(here::here('Data/ProcessedData/implement/implement_cum_curmap.asc'))
-
+biophys.cs <- raster(here::here('data/ProcessedData/biophys/biophys_cum_curmap.asc'))
+implement.cs <- raster(here::here('data/ProcessedData/implement/implement_cum_curmap.asc'))
+jurisdiction.cs <- raster(here::here('data/ProcessedData/jurisdiction/jurisdiction_cum_curmap.asc'))
+cattle.cs <- raster(here::here("data/ProcessedData/cows/cows_cum_curmap.asc"))
 biophys.norm <- (biophys.cs - cellStats(biophys.cs, min))/(cellStats(biophys.cs, max)-cellStats(biophys.cs, min))
 implement.norm <- (implement.cs - cellStats(implement.cs, min))/(cellStats(implement.cs, max)-cellStats(implement.cs, min))
+jurisdiction.norm <- (jurisdiction.cs - cellStats(jurisdiction.cs, min))/(cellStats(jurisdiction.cs, max)-cellStats(jurisdiction.cs, min))
+cattle.norm <- (cattle.cs - cellStats(cattle.cs, min))/(cellStats(cattle.cs, max)-cellStats(cattle.cs, min))
 
 # Create Euclidean distance-----------------------------------------------------
 
@@ -52,7 +57,10 @@ euclidean.tr <- transition(1/euclidean.resist, transitionFunction = mean, 16)
 euclidean.tr <- geoCorrection(euclidean.tr, "c")
 eucdist <- accCost(euclidean.tr, origin.proj)
 
-
+#extract values for last 50km
+euc.dist <- st_distance(as(origin.proj, "sf"), as(goals.proj, "sf"))
+units(euc.dist) <- NULL
+threshold <- as.vector(euc.dist - 10000)
 # Extract cost and current values -----------------------------------------
 
 
@@ -62,10 +70,11 @@ biophys.lst <- biophys[[1]]
 #all.lst <- c(social1.lst, social2.lst, biophys.lst)
 all.lst <- c(social1.lst, biophys.lst)
 soc.costdist1 <- accCost(social.tr1, origin.proj)
-#soc.costdist2 <- accCost(social.tr2, origin.proj)
+jurisdiction.costdist <- accCost(jurisdiction.tr, origin.proj)
+cattle.costdist <- accCost(cattle.tr, origin.proj)
 bio.costdist <- accCost(biophys.tr, origin.proj)
 #dist.stack <- stack(eucdist,bio.costdist, soc.costdist1, soc.costdist2)
-dist.stack <- stack(eucdist,bio.costdist, soc.costdist1, biophys.cs)
+dist.stack <- stack(eucdist,bio.costdist, soc.costdist1, jurisdiction.costdist, cattle.costdist, biophys.cs)
 
 distance.extract <- lapply(1:length(all.lst), function(x) raster::extract(dist.stack, rasterToPolygons(all.lst[[x]], dissolve = TRUE)))
 #names(distance.extract) <- c("s1_1", "s1_2", "s1_3", "s1_4", "s1_5","s2_1", "s2_2", "s2_3", "s2_4", "s2_5","b1", "b2", "b3", "b4", "b5")
@@ -76,7 +85,7 @@ names(dist.df.list) <- names(distance.extract)
 
 dist.df <- dplyr::bind_rows(dist.df.list, .id="column_label")
 #colnames(dist.df) <- c("LCPID","eucdist","bio.costdist", "soc.costdist1", "soc.costdist2")
-colnames(dist.df) <- c("LCPID","eucdist","bio.costdist", "soc.costdist1", "biophys.cur")
+colnames(dist.df) <- c("LCPID","eucdist","bio.costdist", "soc.costdist1", "jurisdiction.costdist","cattle.costdist", "biophys.cur")
 
 dist.cln <- do.call(data.frame,lapply(dist.df, function(x) replace(x, is.infinite(x),NA)))
 
@@ -104,7 +113,7 @@ current.dens <- dist.cln %>%
 
 dist.90 <- dist.cln %>% 
   dplyr::group_by(LCPID) %>% 
-  dplyr::filter(., eucdist > quantile(eucdist, 0.9, na.rm=TRUE))
+  dplyr::filter(., eucdist > threshold)
 #dist.90[,c(2:5)] <- apply(dist.90[,c(2:5)], 2, log10)
 #dist.90[,c(2:4)] <- apply(dist.90[,c(2:4)], 2, log10)
 
@@ -114,28 +123,60 @@ max.bphys.lcp <- dist.90 %>%
 max.difs <- max.bphys.lcp
 max.difs[-1] <- lapply(max.bphys.lcp[-1], function(x) x - min(x, na.rm=TRUE))
 colnames(max.difs)[2] <- "delta_bio.costdist"
+
 dist.group <- dist.90 %>% 
   dplyr::left_join(., max.difs) %>% 
-  dplyr::mutate(., ratio = soc.costdist1/bio.costdist) %>% 
+  dplyr::mutate(., ratio = soc.costdist1/bio.costdist,
+                ratio_jur = jurisdiction.costdist/bio.costdist,
+                ratio_cattle = cattle.costdist/bio.costdist) %>% 
   dplyr::group_by(., LCPID) %>% 
   dplyr::filter(.,  startsWith(LCPID, "b")) %>% 
   dplyr::summarise(., mn_ratio = mean(ratio, na.rm = TRUE), 
                    sd_ratio = sd(ratio, na.rm=TRUE),
-                   mean_delta = mean(delta_bio.costdist, na.rm=TRUE)) %>% 
+                   mean_delta = mean(delta_bio.costdist, na.rm=TRUE),
+                   mn_ratio_jur = mean(ratio_jur, na.rm = TRUE), 
+                   sd_ratio_jur = sd(ratio_jur, na.rm=TRUE),
+                   mn_ratio_cattle = mean(ratio_cattle, na.rm = TRUE), 
+                   sd_ratio_cattle = sd(ratio_cattle, na.rm=TRUE)) %>% 
   dplyr::mutate(., ID = str_remove_all( LCPID, fixed("b")))
   
 
 
-p <- ggplot(data = dist.group, mapping = aes(x = ID, 
+p1 <- ggplot(data = dist.group, mapping = aes(x = ID, 
                                              y = mn_ratio, color = log(mean_delta, 10))) +
   scale_color_viridis_c(direction = -1, begin= 0, end =0.8)
 
-ratio.plot <- p + geom_pointrange(mapping = aes(ymin = mn_ratio - sd_ratio,
+ratio.plot1 <- p1 + geom_pointrange(mapping = aes(ymin = mn_ratio - sd_ratio,
                                   ymax = mn_ratio + sd_ratio)) +
   labs(x= "Cost Rank", y= "Cost ratio") + 
   guides(color = guide_colorbar(title = "\u0394 log(biophysical \ncost)")) +
-  coord_flip() + 
   theme_cowplot()
+
+
+p2 <- ggplot(data = dist.group, mapping = aes(x = ID, 
+                                              y = mn_ratio_jur, color = log(mean_delta, 10))) +
+  scale_color_viridis_c(direction = -1, begin= 0, end =0.8)
+
+ratio.plot2 <- p2 + geom_pointrange(mapping = aes(ymin = mn_ratio_jur - sd_ratio_jur,
+                                                  ymax = mn_ratio_jur + sd_ratio_jur)) +
+  labs(x= "Cost Rank", y= "Cost ratio") + 
+  guides(color = guide_colorbar(title = "\u0394 log(biophysical \ncost)")) +
+  theme_cowplot()
+
+p3 <- ggplot(data = dist.group, mapping = aes(x = ID, 
+                                              y = mn_ratio_cattle, color = log(mean_delta, 10))) +
+  scale_color_viridis_c(direction = -1, begin= 0, end =0.8)
+
+ratio.plot3 <- p3 + geom_pointrange(mapping = aes(ymin = mn_ratio_cattle - sd_ratio_cattle,
+                                                  ymax = mn_ratio_cattle + sd_ratio_cattle)) +
+  labs(x= "Cost Rank", y= "Cost ratio") + 
+  guides(color = guide_colorbar(title = "\u0394 log(biophysical \ncost)")) +
+  theme_cowplot()
+
+#possibly facet wrap this
+ratio.plot1 + ratio.plot2 + ratio.plot3
+
+
 
 # Custom map theme --------------------------------------------------------
 
@@ -188,6 +229,9 @@ conus <-  tigris::states() %>%
   dplyr::filter(,, !STUSPS %in% c("AK","AS", "HI", "GU", "VI", "DC", "PR", "MP")) %>% 
   st_transform(., crs(dist.stack))
 
+cs.proj <- biophys.cs %>%
+  projectRaster(., res=300, crs = crs(dist.stack)) 
+
 sts.crop <- crop(sts, cs.proj)
 
 pa.cents <- rbind(as(origin.proj,"sf"), as(goals.proj, "sf"))
@@ -196,8 +240,6 @@ pa.cents$lab <- c("Weminche \n Wilderness Area", "Yellowstone \n National Park")
 library(purrr)
 library(dplyr)
 
-cs.proj <- biophys.cs %>%
-  projectRaster(., res=300, crs = crs(dist.stack)) 
 
 b_df <- cs.proj %>%
   rasterToPoints %>%
@@ -293,31 +335,74 @@ ggsave(here::here("plots/fig1.png"),  plot = combined, height = 7, width = 10, u
 # Plot bivariate raster ---------------------------------------------------
 library(tidyr) #don't load this initially as it masks all versions of extract
 # convert gridded raster dato dataframe
-b_df <- biophys.norm %>%
+b_df <- biophys.cs %>%
   projectRaster(., res=300, crs = crs(dist.stack)) %>%
   rasterToPoints %>%
   as.data.frame() %>%
-  `colnames<-`(c("x", "y", "biophys"))
+  `colnames<-`(c("x", "y", "biophys")) %>% 
+  mutate(., biophys.scl = ((biophys - min(biophys, na.rm=TRUE))/(max(biophys, na.rm = TRUE) - min(biophys, na.rm = TRUE))) )
 
-s_df <- implement.norm %>%
+s_df <- implement.cs %>%
   projectRaster(., res=300, crs = crs(dist.stack)) %>%
   rasterToPoints %>%
   as.data.frame() %>%
-  `colnames<-`(c("x", "y", "implement"))
+  `colnames<-`(c("x", "y", "implement")) %>% 
+  mutate(., implement.scl = ((implement - min(implement, na.rm=TRUE))/(max(implement, na.rm = TRUE) - min(implement, na.rm = TRUE))) )
+
+
+j_df <- jurisdiction.cs %>%
+  projectRaster(., res=300, crs = crs(dist.stack)) %>%
+  rasterToPoints %>%
+  as.data.frame() %>%
+  `colnames<-`(c("x", "y", "jurisdiction")) %>% 
+  mutate(., juris.scl = ((jurisdiction - min(jurisdiction, na.rm=TRUE))/(max(jurisdiction, na.rm = TRUE) - min(jurisdiction, na.rm = TRUE))) )
+
+
+c_df <- cattle.norm %>%
+  projectRaster(., res=300, crs = crs(dist.stack)) %>%
+  rasterToPoints %>%
+  as.data.frame() %>%
+  `colnames<-`(c("x", "y", "cattle"))%>% 
+  mutate(., cattle.scl = ((cattle - min(cattle, na.rm=TRUE))/(max(cattle, na.rm = TRUE) - min(cattle, na.rm = TRUE))) )
+
 
 b_reclass <- b_df %>% 
-  mutate(PCT = ntile(biophys, 5))  %>%  data.frame()
+  mutate(PCT = ntile(biophys.scl, 5))  %>%  data.frame()
 
 s_reclass <- s_df %>% 
-  mutate(PCT = ntile(implement, 5))  %>%  data.frame()
+  mutate(PCT = ntile(implement.scl, 5))  %>%  data.frame()
 
-df <- left_join(b_reclass, s_reclass, by = c("x","y")) %>%
+rc <- matrix(c(quantile(combined.baseline, probs = seq(0, 1, 0.2), names = FALSE)[1:2],1, 
+               quantile(combined.baseline, probs = seq(0, 1, 0.2), names = FALSE)[2:3], 2,
+               quantile(combined.baseline, probs = seq(0, 1, 0.2), names = FALSE)[3:4], 3,
+               quantile(combined.baseline, probs = seq(0, 1, 0.2), names = FALSE)[4:5],4,
+               quantile(combined.baseline, probs = seq(0, 1, 0.2), names = FALSE)[5], Inf, 5), 
+             ncol = 3, byrow = TRUE)
+implement_quant <- quantile(s_reclass$implement.scl, probs = seq(0, 1, 0.2))[1:5]
+j_reclass <- j_df %>% 
+  mutate(PCT = as.integer(cut(juris.scl, breaks = c(implement_quant, Inf), right = FALSE)))  %>%  data.frame()
+
+c_reclass <- c_df %>% 
+  mutate(PCT = as.integer(cut(cattle.scl, breaks = c(implement_quant, Inf), right=FALSE)))  %>%  data.frame()
+
+
+df_base <- left_join(b_reclass, s_reclass, by = c("x","y")) %>%
   mutate(
     group = paste(PCT.y, PCT.x, sep = " - ")
   ) %>%
   dplyr::select(-c(PCT.x, PCT.y))
 
+df_juris <- left_join(b_reclass, j_reclass, by = c("x","y")) %>%
+  mutate(
+    group = paste(PCT.y, PCT.x, sep = " - ")
+  ) %>%
+  dplyr::select(-c(PCT.x, PCT.y))
 
+df_cattle <-left_join(b_reclass, c_reclass, by = c("x","y")) %>%
+  mutate(
+    group = paste(PCT.y, PCT.x, sep = " - ")
+  ) %>%
+  dplyr::select(-c(PCT.x, PCT.y))
 
 # Build a palette ---------------------------------------------------------
 colmat<-function(nquantiles=10, upperleft=rgb(0,150,235, maxColorValue=255), upperright=rgb(130,0,80, maxColorValue=255), bottomleft="grey", bottomright=rgb(255,230,15, maxColorValue=255), xlab="x label", ylab="y label"){
@@ -377,13 +462,13 @@ legend_5$fill[6:10] <- col.matrix[8,seq(10, 0, -2)]
 legend_5$fill[11:15] <- col.matrix[6,seq(10, 0, -2)]
 legend_5$fill[16:20] <- col.matrix[4,seq(10, 0, -2)]
 legend_5$fill[21:25] <- col.matrix[2,seq(10, 0, -2)]
-df <- left_join(df, legend_5)
-
-
+df_base <- left_join(df_base, legend_5)
+df_juris <- left_join(df_juris, legend_5)
+df_cattle <- left_join(df_cattle, legend_5)
 
 p1 <- RStoolbox::ggR(hills3) +
   geom_raster(
-    data = df,
+    data = df_base,
     aes(
       x=x,
       y=y,
@@ -400,7 +485,47 @@ p1 <- RStoolbox::ggR(hills3) +
   theme(legend.position = 'none',
         plot.margin = unit(c(5.5, 1.5, 0, 1.5), units = "pt"))
 
-p2 <- legend_5 %>%
+
+p2 <- RStoolbox::ggR(hills3) +
+  geom_raster(
+    data = df_juris,
+    aes(
+      x=x,
+      y=y,
+      fill=fill
+    ),
+    alpha=0.8,
+    interpolate = TRUE
+  ) +
+  scale_fill_identity() +
+  geom_sf(data = PAs, fill = "forestgreen") +
+  geom_sf(data = as(sts.crop, "sf"), fill = NA, color="black")+
+  theme_map() +
+  theme(legend.position = 'none',
+        plot.margin = unit(c(5.5, 1.5, 0, 1.5), units = "pt"))
+
+p3 <- RStoolbox::ggR(hills3) +
+  geom_raster(
+    data = df_cattle,
+    aes(
+      x=x,
+      y=y,
+      fill=fill
+    ),
+    alpha=0.8,
+    interpolate = TRUE
+  ) +
+  scale_fill_identity() +
+  geom_sf(data = PAs, fill = "forestgreen") +
+  geom_sf(data = as(sts.crop, "sf"), fill = NA, color="black")+
+  theme_map() +
+  theme(legend.position = 'none',
+        plot.margin = unit(c(5.5, 1.5, 0, 1.5), units = "pt"))
+
+
+p1+p2+p3
+
+l <- legend_5 %>%
   separate(group,
            into = c("biophys", "implement"),
            sep = " - ") %>%
@@ -435,4 +560,76 @@ p <- ggdraw(p.combined)  +
 
 cowplot::save_plot(here::here("plots/fig2.png"),  plot = p, base_height = 7.5, units = "in", dpi = "screen")
 
+# need to think about a delta, maybe?
+rc <- matrix(c(quantile(combined.baseline, probs = seq(0, 1, 0.2), names = FALSE)[1:2],1, 
+               quantile(combined.baseline, probs = seq(0, 1, 0.2), names = FALSE)[2:3], 2,
+               quantile(combined.baseline, probs = seq(0, 1, 0.2), names = FALSE)[3:4], 3,
+               quantile(combined.baseline, probs = seq(0, 1, 0.2), names = FALSE)[4:5],4,
+               quantile(combined.baseline, probs = seq(0, 1, 0.2), names = FALSE)[5], Inf, 5), 
+             ncol = 3, byrow = TRUE)
 
+combined.baseline <- biophys.norm * implement.norm
+combined.reclass <- reclassify(combined.baseline, rc)
+combined.jurisdiction <- reclassify(biophys.norm * jurisdiction.norm, rc)
+combined.cattle <- reclassify(biophys.norm * cattle.norm, rc)
+
+delta.juris <- combined.jurisdiction - combined.reclass
+delta.cattle <- combined.cattle - combined.reclass
+
+juris.delta.df <- delta.juris %>%
+  projectRaster(., res=300, crs = crs(dist.stack)) %>%
+  rasterToPoints %>%
+  as.data.frame() %>%
+  `colnames<-`(c("x", "y", "delta")) %>% data.frame()
+
+cattle.delta.df <- delta.cattle %>%
+  projectRaster(., res=300, crs = crs(dist.stack)) %>%
+  rasterToPoints %>%
+  as.data.frame() %>%
+  `colnames<-`(c("x", "y", "delta")) %>% data.frame()
+
+
+tst.1 <- ggplot() +
+  geom_raster(
+    data = juris.delta.df,
+    aes(
+      x=x,
+      y=y,
+      fill=delta
+    ),
+    alpha=0.8,
+    interpolate = TRUE
+  ) +
+  scale_fill_scico(palette = "cork", midpoint = 0) +
+  geom_sf(data = PAs, fill = "forestgreen") +
+  geom_sf(data = as(sts.crop, "sf"), fill = NA, color="black")+
+  theme_map() +
+  theme(legend.position = 'bottom',
+        plot.margin = unit(c(5.5, 1.5, 0, 1.5), units = "pt"))
+
+
+tst.2 <- RStoolbox::ggR(hills3) +
+  geom_raster(
+    data = cattle.delta.df,
+    aes(
+      x=x,
+      y=y,
+      fill=delta
+    ),
+    alpha=0.8,
+    interpolate = TRUE
+  ) +
+  scale_fill_scico(palette = "vik") +
+  geom_sf(data = PAs, fill = "forestgreen") +
+  geom_sf(data = as(sts.crop, "sf"), fill = NA, color="black")+
+  theme_map() +
+  theme(legend.position = 'bottom',
+        plot.margin = unit(c(5.5, 1.5, 0, 1.5), units = "pt"))
+
+
+juris.df <- combined.jurisdiction %>%
+  projectRaster(., res=300, crs = crs(dist.stack)) %>%
+  rasterToPoints %>%
+  as.data.frame() %>%
+  `colnames<-`(c("x", "y", "combined")) %>% 
+  mutate(PCT = ntile(combined, 5))  %>%  data.frame()
