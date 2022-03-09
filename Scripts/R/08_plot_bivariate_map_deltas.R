@@ -58,15 +58,15 @@ implement.reclass <- implement.df %>%
 juris.reclass <- jurisdiction.df %>% 
   dplyr::mutate(., PCT = as.integer(cut(jurisdiction, breaks = implement.quant, include.lowest = TRUE, ordered_result = TRUE)),
                 PCTnorm = as.integer(cut(juris.norm, breaks = implement.norm.quant, include.lowest = TRUE, ordered_result = TRUE)),
-                diff = juris.reclass$PCT - implement.reclass$PCT,
-                difnorm = juris.reclass$PCTnorm - implement.reclass$PCTnorm)
+                diff = PCT - implement.reclass$PCT,
+                difnorm = PCTnorm - implement.reclass$PCTnorm)
 
 
 cattle.reclass <- cattle.df %>% 
   dplyr::mutate(., PCT = as.integer(cut(cattle, breaks = implement.quant, include.lowest = TRUE, ordered_result = TRUE)),
                 PCTnorm = as.integer(cut(cattle.norm, breaks = implement.norm.quant, include.lowest = TRUE, ordered_result = TRUE)),
-                diff = cattle.reclass$PCT - implement.reclass$PCT,
-                difnorm = cattle.reclass$PCTnorm - implement.reclass$PCTnorm)
+                diff = PCT - implement.reclass$PCT,
+                difnorm = PCTnorm - implement.reclass$PCTnorm)
 
 
 df.join.base <- left_join(biophys.reclass, implement.reclass, by = c("x","y")) %>%
