@@ -178,6 +178,9 @@ pa.cents <- rbind(as(origin.proj,"sf"), as(goals.proj, "sf"))
 pa.cents$lab <- c("Weminche \n Wilderness Area", "Yellowstone \n National Park")
 
 
+# Make the plots ----------------------------------------------------------
+
+
 p1 <- RStoolbox::ggR(hills3) +
   geom_raster(
     data = df.join.base,
