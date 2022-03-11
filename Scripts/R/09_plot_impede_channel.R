@@ -186,3 +186,4 @@ p3 <- RStoolbox::ggR(hills3) +
 combined.plot <- p1+p2+p3 + plot_layout(guides = "collect") +  plot_annotation(tag_levels = "A", tag_suffix = ")") & theme(legend.position = "bottom", legend.justification = "center",
                                                                                                          legend.margin=margin(0,0,0,0),
                                                                                                          legend.box.margin=margin(-15,-10,-10,-10)) 
+ggsave(here::here("plots/fig4.png"), plot =combined.plot)
