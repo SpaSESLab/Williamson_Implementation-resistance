@@ -7,7 +7,7 @@ library(ggplot2)
 library(rasterVis)
 library(patchwork)
 library(classInt)
-library(cowplot)
+#library(cowplot)
 library(ggsci)
 library(stringr)
 library(egg)
@@ -38,6 +38,9 @@ goals.proj <- spTransform(goals, crs(biophys.resist))
 social1 <- readRDS(here::here('Data/ProcessedData/TransitionLayers/socialtop5.rds'))
 biophys <- readRDS(here::here('Data/ProcessedData/TransitionLayers/biophystop5.rds'))
 
+# Load biophys circuitscape run -------------------------------------------
+
+biophys.cs <- raster(here::here("data/ProcessedData/biophys/biophys_cum_curmap.asc"))
 
 # Create Euclidean distance-----------------------------------------------------
 
@@ -115,7 +118,7 @@ dist.group <- dist.90 %>%
                 ajuris = jurisdiction.costdist/bio.costdist,
                 bcattle = cattle.costdist/bio.costdist) %>%
   dplyr::filter(.,  startsWith(LCPID, "b")) %>% 
-  select(., c(1,8:11)) %>% 
+  dplyr::select(., c(1,8:11)) %>% 
   pivot_longer(., !c(LCPID, delta_bio.costdist)) %>% 
   dplyr::mutate(., ID = str_remove_all( LCPID, fixed("b")))
 
@@ -165,6 +168,6 @@ p3 <- ggplot(data = filter(dist.sum, name == "bcattle"), mapping = aes(x = ID,
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank() )
 
-combined <- p1 + p2 + p3 + plot_layout(guides = 'collect') + plot_annotation(tag_levels = "a", tag_suffix = ")")
+combined <- p1 + p2 + p3 + plot_layout(guides = 'collect') + plot_annotation(tag_levels = "A", tag_suffix = ")")
 
 ggsave('plots/fig2.png', combined)
