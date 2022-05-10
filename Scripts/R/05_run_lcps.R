@@ -4,7 +4,7 @@ library(yenpathy)
 library(rgdal)
 library(sf)
 library(magrittr)
-
+library(matrixStats)
 # Load top paths function -------------------------------------------------
 
 
