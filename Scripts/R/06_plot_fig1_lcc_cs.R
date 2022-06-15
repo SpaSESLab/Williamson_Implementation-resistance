@@ -125,7 +125,7 @@ p.cs <- RStoolbox::ggR(hills3) +
                        breaks = c(0,0.005),
                        labels = c("Low","High")) +
   geom_sf(data=biophys.lcp.sf, aes(color=as.character(rank)), fill=NA, lwd=1.15) +
-  scale_color_locuszoom() +
+  scale_colour_brewer(type= "seq") +
   geom_sf(data = PAs, fill = "forestgreen") +
   geom_sf(data = as(sts.crop, "sf"), fill = NA, color="white")+
   ggrepel::geom_text_repel(data = pa.cents, size = 1.75, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = -40000 , nudge_y = c(80000,90000), fontface="bold", color = "white")+
