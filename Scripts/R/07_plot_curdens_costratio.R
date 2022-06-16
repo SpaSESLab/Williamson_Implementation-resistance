@@ -44,12 +44,7 @@ biophys.cs <- raster(here::here("data/ProcessedData/biophys/biophys_cum_curmap.a
 
 # Create Euclidean distance-----------------------------------------------------
 
-euclidean.resist <- biophys.resist
-values(euclidean.resist) <- 1
-euclidean.tr <- transition(1/euclidean.resist, transitionFunction = mean, 16)
-euclidean.tr <- geoCorrection(euclidean.tr, "c")
-eucdist <- accCost(euclidean.tr, origin.proj)
-
+eucdist <- distanceFromPoints(biophys.resist, origin.proj)
 #extract values for last 50km
 euc.dist <- st_distance(as(origin.proj, "sf"), as(goals.proj, "sf"))
 units(euc.dist) <- NULL
@@ -80,11 +75,10 @@ dist.df <- dplyr::bind_rows(dist.df.list, .id="column_label")
 #colnames(dist.df) <- c("LCPID","eucdist","bio.costdist", "soc.costdist1", "soc.costdist2")
 colnames(dist.df) <- c("LCPID","eucdist","bio.costdist", "soc.costdist1", "jurisdiction.costdist","cattle.costdist", "biophys.cur")
 
-dist.cln <- do.call(data.frame,lapply(dist.df, function(x) replace(x, is.infinite(x),NA)))
 
 # Estimate current density ------------------------------------------------
 
-current.dens <- dist.cln %>% 
+current.dens <- dist.df %>% 
   dplyr::group_by(., LCPID) %>%
   dplyr::filter(., startsWith(LCPID, "b")) %>% 
   dplyr::summarise(., sum.current = round(sum(biophys.cur, na.rm = TRUE), 2),
@@ -99,75 +93,100 @@ flextable::save_as_docx(current.dens, path = here::here("plots/table1.docx"))
 # Estimate cost.ratio -----------------------------------------------------
 library(tidyr)
 library(dplyr)
-dist.90 <- dist.cln %>% 
+dist.90 <- dist.df %>% 
   dplyr::group_by(LCPID) %>% 
   dplyr::filter(., eucdist > threshold)
 #dist.90[,c(2:5)] <- apply(dist.90[,c(2:5)], 2, log10)
 #dist.90[,c(2:4)] <- apply(dist.90[,c(2:4)], 2, log10)
 
-max.bphys.lcp <- dist.90 %>% 
-  dplyr::group_by(., LCPID) %>%
-  dplyr::summarise(., max_biophys = max(bio.costdist, na.rm=TRUE))
-max.difs <- max.bphys.lcp
-max.difs[-1] <- lapply(max.bphys.lcp[-1], function(x) x - min(x, na.rm=TRUE))
-colnames(max.difs)[2] <- "delta_bio.costdist"
+max.biophys <- max(dist.90$bio.costdist)
+max.social <- max(dist.90$soc.costdist1)
+max.cattle <- max(dist.90$cattle.costdist)
+max.juris <- max(dist.90$jurisdiction.costdist)
 
-dist.group <- dist.90 %>% 
-  dplyr::left_join(., max.difs) %>%
-  dplyr::mutate(., abase = soc.costdist1/bio.costdist,
-                ajuris = jurisdiction.costdist/bio.costdist,
-                bcattle = cattle.costdist/bio.costdist) %>%
+dist.tbl <- dist.90 %>% 
+  mutate(., biocostkm = bio.costdist/eucdist,
+               soccostkm = soc.costdist1/eucdist,
+               juriscostkm = jurisdiction.costdist/eucdist,
+               cattlecostkm = cattle.costdist/eucdist,
+               tobase = (1+(max.biophys - bio.costdist)/(1+(max.social-soc.costdist1))),
+               tocattle = (1+(max.biophys - bio.costdist)/(1+(max.cattle - cattle.costdist))),
+               tojuris = (1+(max.biophys - bio.costdist)/(1+(max.juris - jurisdiction.costdist)))
+            ) %>%
+  select(., c(1, 8:14)) %>% 
   dplyr::filter(.,  startsWith(LCPID, "b")) %>% 
-  dplyr::select(., c(1,8:11)) %>% 
-  pivot_longer(., !c(LCPID, delta_bio.costdist)) %>% 
+  pivot_longer(., !LCPID)%>% 
   dplyr::mutate(., ID = str_remove_all( LCPID, fixed("b")))
-
-dist.sum <- dist.group %>% 
+  
+dist.sum <- dist.tbl %>% 
   group_by(., ID, name) %>% 
   summarise(mn = mean(value),
-            std = sd(value),
-            costdist = log(delta_bio.costdist, 10))
+            std = sd(value))
 
 
-p1 <- ggplot(data = filter(dist.sum, name == "abase"), mapping = aes(x = ID, 
+my_blues = RColorBrewer::brewer.pal(n = 9, "Blues")[4:8]
+p1 <- ggplot(data = filter(dist.sum, name == "biocostkm"), mapping = aes(x = ID, 
                                                                      y = mn, 
-                                                                     color = costdist)) +
+                                                                     color = ID)) +
+  geom_pointrange(mapping = aes(ymin = mn - std,
+                                ymax = mn + std), show.legend = FALSE) +
+  scale_color_manual(values=my_blues) + 
+  labs(x= "Cost Rank", y= "Cost per km") + 
+  guides(color = guide_legend(title = "Cost Rank")) +
+  ggtitle("Biophysical costs") +
+  theme_bw() 
+
+p2 <- ggplot(data = filter(dist.sum, name == "soccostkm"), mapping = aes(x = ID, 
+                                                                         y = mn, 
+                                                                         color = ID)) +
+  geom_pointrange(mapping = aes(ymin = mn - std,
+                                ymax = mn + std), show.legend=FALSE) +
+  scale_color_manual(values=my_blues) + 
+  ylim(c(470, 630)) +
+  labs(x= "Cost Rank", y= NULL) + 
+  guides(color = guide_legend(title = "Cost Rank")) +
+  ggtitle("Implementation costs\n (Baseline)") +
+  theme_bw() 
+
+
+p3 <- ggplot(data = filter(dist.sum, name == "juriscostkm"), mapping = aes(x = ID, 
+                                                                         y = mn, 
+                                                                         color = ID)) +
+  geom_pointrange(mapping = aes(ymin = mn - std,
+                                ymax = mn + std), show.legend = FALSE) +
+  scale_color_manual(values=my_blues) + 
+  ylim(c(470, 630)) +
+  labs(x= "Cost Rank", y= NULL) + 
+  guides(color = guide_legend(title = "Cost Rank")) +
+  ggtitle("Implementation costs \n(policy scenario)") +
+  theme_bw() + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
+
+p4 <-ggplot(data = filter(dist.sum, name == "cattlecostkm"), mapping = aes(x = ID, 
+                                                                          y = mn, 
+                                                                          color = ID)) +
   geom_pointrange(mapping = aes(ymin = mn - std,
                                 ymax = mn + std)) +
-  scale_color_viridis_c(direction = -1, begin= 0, end =0.8) + 
-  ylim(110, 150) +
-  labs(x= "Cost Rank", y= "Cost ratio") + 
-  guides(color = guide_colorbar(title = "\u0394 log(biophysical \ncost)")) +
-  theme_bw()
+  scale_color_manual(values=my_blues) + 
+  ylim(c(470, 630)) +
+  labs(x= "Cost Rank", y= NULL) + 
+  guides(color = guide_legend(title = "Cost Rank", direction="vertical")) +
+  ggtitle("Implementation costs \n(land use scenario)") +
+  theme_bw() + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), legend.position = 'right')
 
-p2 <- ggplot(data = filter(dist.sum, name == "ajuris"), mapping = aes(x = ID, 
-                                                                      y = mn, 
-                                                                      color = costdist)) +
-  geom_pointrange(mapping = aes(ymin = mn - std,
-                                ymax = mn + std)) +
-  scale_color_viridis_c(direction = -1, begin= 0, end =0.8) + 
-  ylim(110, 150) +
-  labs(x= "Cost Rank", y= "Cost ratio") + 
-  guides(color = guide_colorbar(title = "\u0394 log(biophysical \ncost)")) +
-  theme_bw() +
-  theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.title.y = element_blank())
 
-p3 <- ggplot(data = filter(dist.sum, name == "bcattle"), mapping = aes(x = ID, 
-                                                                       y = mn, 
-                                                                       color = costdist)) +
-  geom_pointrange(mapping = aes(ymin = mn - std,
-                                ymax = mn + std)) +
-  scale_color_viridis_c(direction = -1, begin= 0, end =0.8) + 
-  ylim(110, 150) +
-  labs(x= "Cost Rank", y= "Cost ratio") + 
-  guides(color = guide_colorbar(title = "\u0394 log(biophysical \ncost)")) +
-  theme_bw() +
-  theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.title.y = element_blank() )
 
-combined <- p1 + p2 + p3 + plot_layout(guides = 'collect') + plot_annotation(tag_levels = "A", tag_suffix = ")")
+combined <- p1 | p2 | p3  | p4 + plot_annotation(tag_levels = "A", tag_suffix = ")")
 
 ggsave('plots/fig2.png', combined)
+
+to <- dist.tbl %>% 
+  group_by(., ID, name) %>% 
+  summarise(mn = mean(value),
+            std = sd(value)) %>% 
+  filter(., str_detect(name, "^to")) %>% 
+  pivot_wider(., id_cols = ID, names_from = name, values_from=c(mn,std)) %>% 
+  select(., 1:4) %>% 
+  flextable::flextable() %>% 
+  flextable::set_header_labels(., ID = "Cost Rank", mn_tobase = "Trade-off Index (baseline)", mn_tojuris = "Trade-off Index (policy scenario)", mn_tocattle = "Trade-off Index (land use scenario)") 
+
+flextable::save_as_docx(to, path = here::here("plots/table1.docx"))
