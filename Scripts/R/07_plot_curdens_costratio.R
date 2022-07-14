@@ -129,37 +129,38 @@ p1 <- ggplot(data = filter(dist.sum, name == "biocostkm"), mapping = aes(x = ID,
                                                                      y = mn, 
                                                                      color = ID)) +
   geom_pointrange(mapping = aes(ymin = mn - std,
-                                ymax = mn + std), show.legend = FALSE) +
+                                ymax = mn + std)) +
   scale_color_manual(values=my_blues) + 
   labs(x= "Cost Rank", y= "Cost per km") + 
-  guides(color = guide_legend(title = "Cost Rank")) +
+  guides(color = guide_legend(title = "Cost Rank", direction="horizontal")) +
   ggtitle("Biophysical costs") +
-  theme_bw() 
+  theme_bw(base_size = 12, base_family = "Times" ) + theme(legend.position = "bottom")
 
 p2 <- ggplot(data = filter(dist.sum, name == "soccostkm"), mapping = aes(x = ID, 
                                                                          y = mn, 
                                                                          color = ID)) +
   geom_pointrange(mapping = aes(ymin = mn - std,
-                                ymax = mn + std), show.legend=FALSE) +
+                                ymax = mn + std)) +
   scale_color_manual(values=my_blues) + 
   ylim(c(470, 630)) +
   labs(x= "Cost Rank", y= NULL) + 
-  guides(color = guide_legend(title = "Cost Rank")) +
+  guides(color = guide_legend(title = "Cost Rank", direction="horizontal")) +
   ggtitle("Implementation costs\n (Baseline)") +
-  theme_bw() 
+  theme_bw(base_size = 12, base_family = "Times")+ theme(legend.position = "bottom")
 
 
 p3 <- ggplot(data = filter(dist.sum, name == "juriscostkm"), mapping = aes(x = ID, 
                                                                          y = mn, 
                                                                          color = ID)) +
   geom_pointrange(mapping = aes(ymin = mn - std,
-                                ymax = mn + std), show.legend = FALSE) +
+                                ymax = mn + std)) +
   scale_color_manual(values=my_blues) + 
   ylim(c(470, 630)) +
   labs(x= "Cost Rank", y= NULL) + 
-  guides(color = guide_legend(title = "Cost Rank")) +
+  guides(color = guide_legend(title = "Cost Rank", direction="horizontal")) +
   ggtitle("Implementation costs \n(policy scenario)") +
-  theme_bw() + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
+  theme_bw(base_size = 12, base_family = "Times" )+
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), legend.position = "bottom")
 
 p4 <-ggplot(data = filter(dist.sum, name == "cattlecostkm"), mapping = aes(x = ID, 
                                                                           y = mn, 
@@ -169,15 +170,18 @@ p4 <-ggplot(data = filter(dist.sum, name == "cattlecostkm"), mapping = aes(x = I
   scale_color_manual(values=my_blues) + 
   ylim(c(470, 630)) +
   labs(x= "Cost Rank", y= NULL) + 
-  guides(color = guide_legend(title = "Cost Rank", direction="vertical")) +
+  guides(color = guide_legend(title = "Cost Rank", direction="horizontal")) +
   ggtitle("Implementation costs \n(land use scenario)") +
-  theme_bw() + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), legend.position = 'right')
+  theme_bw(base_size = 12, base_family = "Times" ) + 
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), legend.position = "bottom")
 
 
 
-combined <- p1 | p2 | p3  | p4 + plot_annotation(tag_levels = "A", tag_suffix = ")")
+combined <- (p1 | p2 | p3  | p4) + plot_annotation(tag_levels = "A", tag_suffix = ")") + 
+  plot_layout(guides='collect') &
+  theme(legend.position='bottom')
 
-ggsave('plots/fig2.png', combined)
+ggsave('plots/fig2.png', combined, width = 9.5, height = 7.5, units = "in")
 
 to <- dist.tbl %>% 
   group_by(., ID, name) %>% 
