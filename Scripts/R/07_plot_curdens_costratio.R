@@ -45,7 +45,7 @@ biophys.cs <- raster(here::here("data/ProcessedData/biophys/biophys_cum_curmap.a
 # Create Euclidean distance-----------------------------------------------------
 
 eucdist <- distanceFromPoints(biophys.resist, origin.proj)
-#extract values for last 50km
+#extract values for last 10km
 euc.dist <- st_distance(as(origin.proj, "sf"), as(goals.proj, "sf"))
 units(euc.dist) <- NULL
 threshold <- as.vector(euc.dist - 10000)
@@ -134,7 +134,7 @@ p1 <- ggplot(data = filter(dist.sum, name == "biocostkm"), mapping = aes(x = ID,
   labs(x= "Cost Rank", y= "Cost per km") + 
   guides(color = guide_legend(title = "Cost Rank", direction="horizontal")) +
   ggtitle("Biophysical costs") +
-  theme_bw(base_size = 12, base_family = "Times" ) + theme(legend.position = "bottom")
+  theme_bw(base_size = 12, base_family = "Times" ) + theme(legend.position = "bottom", axis.text = element_text(size=13), axis.title = element_text(size=15))
 
 p2 <- ggplot(data = filter(dist.sum, name == "soccostkm"), mapping = aes(x = ID, 
                                                                          y = mn, 
@@ -146,7 +146,7 @@ p2 <- ggplot(data = filter(dist.sum, name == "soccostkm"), mapping = aes(x = ID,
   labs(x= "Cost Rank", y= NULL) + 
   guides(color = guide_legend(title = "Cost Rank", direction="horizontal")) +
   ggtitle("Implementation costs\n (Baseline)") +
-  theme_bw(base_size = 12, base_family = "Times")+ theme(legend.position = "bottom")
+  theme_bw(base_size = 12, base_family = "Times") + theme(legend.position = "bottom", axis.text = element_text(size=13), axis.title = element_text(size=15))
 
 
 p3 <- ggplot(data = filter(dist.sum, name == "juriscostkm"), mapping = aes(x = ID, 
@@ -160,7 +160,7 @@ p3 <- ggplot(data = filter(dist.sum, name == "juriscostkm"), mapping = aes(x = I
   guides(color = guide_legend(title = "Cost Rank", direction="horizontal")) +
   ggtitle("Implementation costs \n(policy scenario)") +
   theme_bw(base_size = 12, base_family = "Times" )+
-  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), legend.position = "bottom")
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_text(size=13), axis.title.x = element_text(size=15), legend.position = "bottom")
 
 p4 <-ggplot(data = filter(dist.sum, name == "cattlecostkm"), mapping = aes(x = ID, 
                                                                           y = mn, 
@@ -173,7 +173,7 @@ p4 <-ggplot(data = filter(dist.sum, name == "cattlecostkm"), mapping = aes(x = I
   guides(color = guide_legend(title = "Cost Rank", direction="horizontal")) +
   ggtitle("Implementation costs \n(land use scenario)") +
   theme_bw(base_size = 12, base_family = "Times" ) + 
-  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), legend.position = "bottom")
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_text(size=13), axis.title.x = element_text(size=15), legend.position = "bottom")
 
 
 

@@ -135,17 +135,17 @@ theme_map <- function(...) {
     )
 }
 # Load Elev data and calc hillshade ---------------------------------------
-elev <- getData('alt', country = 'USA')
-elev.proj <- projectRaster(elev[[1]], biophys.cs)
+elev.us <- geodata::elevation_30s(country="USA", path=tempdir())
+
+elev.proj <- terra::project(elev.us, rast(biophys.cs))
 
 
 elev.crop <- crop(elev.proj, biophys.cs)
 elev.mod <- elev.crop *10
-slope <- terrain(elev.mod, opt='slope')
-aspect <- terrain(elev.mod, opt='aspect')
-hill = hillShade(slope, aspect, 40, 270)
-hill2 <- aggregate(hill , fact = 5 , method = "bilinear" )
-hills3 <- focal(hill2, w=matrix(1/9, nc=3, nr=3), mean)
+slope <- terrain(elev.mod, v='slope', unit="radians")
+aspect <- terrain(elev.mod, v='aspect', unit="radians")
+hill = shade(slope, aspect, 40, 270)
+
 
 # Load centroids ----------------------------------------------------------
 origins <- st_read(here::here("Data/ProcessedData/shapefiles/studyPAcentroids.shp")) %>% 
@@ -175,13 +175,13 @@ conus <-  tigris::states() %>%
 sts.crop <- crop(sts, biophys.cs)
 
 pa.cents <- rbind(as(origin.proj,"sf"), as(goals.proj, "sf"))
-pa.cents$lab <- c("Weminche \n Wilderness Area", "Yellowstone \n National Park")
+pa.cents$lab <- c("Weminuche \n Wilderness Area", "Yellowstone \n National Park")
 
 
 # Make the plots ----------------------------------------------------------
 
 
-p1 <- RStoolbox::ggR(hills3) +
+p1 <- RStoolbox::ggR(hill) +
   geom_raster(
     data = df.join.base,
     aes(
@@ -195,7 +195,7 @@ p1 <- RStoolbox::ggR(hills3) +
   scale_fill_identity() +
   geom_sf(data = PAs, fill = "forestgreen") +
   geom_sf(data = as(sts.crop, "sf"), fill = NA, color="black")+
-  ggrepel::geom_text_repel(data = pa.cents, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = -40000 , nudge_y = c(80000,90000), fontface="bold", color = "white")+
+  ggrepel::geom_text_repel(data = pa.cents, size = 2.25, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = c(-240000, 180000) , nudge_y = c(63000,99000), fontface="bold", color = "black")+
   theme_map() +
   theme(legend.position = 'none')
 
@@ -225,7 +225,7 @@ l <- legend.5 %>%
 
 
 
-p2 <- RStoolbox::ggR(hills3) +
+p2 <- RStoolbox::ggR(hill) +
   geom_raster(
     data = juris.reclass,
     aes(
@@ -239,7 +239,7 @@ p2 <- RStoolbox::ggR(hills3) +
   scale_fill_cmocean(name="curl") +
   geom_sf(data = PAs, fill = "forestgreen") +
   geom_sf(data = as(sts.crop, "sf"), fill = NA, color="black")+
-  ggrepel::geom_text_repel(data = pa.cents, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = -40000 , nudge_y = c(80000,90000), fontface="bold", color = "black")+
+  ggrepel::geom_text_repel(data = pa.cents, size = 2.25, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = c(-240000, 180000) , nudge_y = c(63000,99000), fontface="bold", color = "black")+
   guides(fill = guide_colorbar(nbin = 8,  title.position = "top", 
                                label.position="bottom", title = "\u0394 in rank")) +
   theme_map() +
@@ -247,7 +247,7 @@ p2 <- RStoolbox::ggR(hills3) +
         legend.direction = 'horizontal',
         legend.justification = "center"  )
 
-p3 <- RStoolbox::ggR(hills3) +
+p3 <- RStoolbox::ggR(hill) +
   geom_raster(
     data = cattle.reclass,
     aes(
@@ -261,7 +261,7 @@ p3 <- RStoolbox::ggR(hills3) +
   scale_fill_cmocean(name="curl", limits = c(-3,3)) +
   geom_sf(data = PAs, fill = "forestgreen") +
   geom_sf(data = as(sts.crop, "sf"), fill = NA, color="black")+
-  ggrepel::geom_text_repel(data = pa.cents, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = -40000 , nudge_y = c(80000,90000), fontface="bold", color = "black")+
+  ggrepel::geom_text_repel(data = pa.cents, size = 2.25, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = c(-240000, 180000) , nudge_y = c(63000,99000), fontface="bold", color = "black")+
   guides(fill = guide_colorbar(nbin = 8,  title.position = "top", 
                                label.position="bottom", title = "\u0394 in rank")) +
   theme_map() +
@@ -282,4 +282,4 @@ p <- ggdraw(triplot)  +
   draw_plot(l, x = 0, y = 0, 
             width = 0.24, height = 0.24) 
 
-ggsave(here::here("plots/fig3.png"), plot =p)
+ggsave(here::here("plots/fig3.png"), plot =p, width = 10.5, height=7.5, units = "in", dpi = 400)

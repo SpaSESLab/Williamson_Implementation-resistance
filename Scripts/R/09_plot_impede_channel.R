@@ -6,6 +6,7 @@ library(cmocean)
 library(viridis)
 library(sf)
 library(patchwork)
+library(geodata)
 # load cs results ---------------------------------------------------------
 implement.cs <- raster(here::here('data/ProcessedData/implement/implement_cum_curmap.asc'))
 jurisdiction.cs <- raster(here::here('data/ProcessedData/jurisdiction/jurisdiction_cum_curmap.asc'))
@@ -71,17 +72,16 @@ theme_map <- function(...) {
     )
 }
 # Load Elev data and calc hillshade ---------------------------------------
-elev <- getData('alt', country = 'USA')
-elev.proj <- projectRaster(elev[[1]], implement.cs)
+elev.us <- geodata::elevation_30s(country="USA", path=tempdir())
+
+elev.proj <- terra::project(elev.us, rast(implement.cs))
 
 
 elev.crop <- crop(elev.proj, implement.cs)
 elev.mod <- elev.crop *10
-slope <- terrain(elev.mod, opt='slope')
-aspect <- terrain(elev.mod, opt='aspect')
-hill = hillShade(slope, aspect, 40, 270)
-hill2 <- aggregate(hill , fact = 5 , method = "bilinear" )
-hills3 <- focal(hill2, w=matrix(1/9, nc=3, nr=3), mean)
+slope <- terrain(elev.mod, v='slope', unit="radians")
+aspect <- terrain(elev.mod, v='aspect', unit="radians")
+hill = shade(slope, aspect, 40, 270)
 
 # Load centroids ----------------------------------------------------------
 origins <- st_read(here::here("Data/ProcessedData/shapefiles/studyPAcentroids.shp")) %>% 
@@ -111,12 +111,12 @@ conus <-  tigris::states() %>%
 sts.crop <- crop(sts, implement.cs)
 
 pa.cents <- rbind(as(origin.proj,"sf"), as(goals.proj, "sf"))
-pa.cents$lab <- c("Weminche \n Wilderness Area", "Yellowstone \n National Park")
+pa.cents$lab <- c("Weminuche \n Wilderness Area", "Yellowstone \n National Park")
 
 
 # Make the plots ----------------------------------------------------------
 
-p1 <- RStoolbox::ggR(hills3) +
+p1 <- RStoolbox::ggR(hill) +
   geom_raster(
     data = implement.norm.df[!is.na(implement.norm.df$channel),],
     aes(
@@ -129,8 +129,7 @@ p1 <- RStoolbox::ggR(hills3) +
   scale_fill_viridis(labels = c("Impeded", "Channelized"), discrete = TRUE, begin = 0.33, end = 0.8,option = "D") +
   geom_sf(data = PAs, fill = "forestgreen") +
   geom_sf(data = as(sts.crop, "sf"), fill = NA, color="black")+
-  ggrepel::geom_text_repel(data = pa.cents, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), 
-                           nudge_x = -40000 , nudge_y = c(80000,90000), fontface="bold", color = "white")+
+  ggrepel::geom_label_repel(data = pa.cents, size = 2.25, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = c(-240000, 180000) , nudge_y = c(63000,99000), fontface="bold", fill ="white", color= "black")+
   guides(fill = guide_legend(title.position = "top", 
                                label.position="bottom", title = NULL)) +
   theme_map() +
@@ -138,7 +137,7 @@ p1 <- RStoolbox::ggR(hills3) +
         legend.direction = 'horizontal',
         legend.justification = "center"  )
 
-p2 <- RStoolbox::ggR(hills3) +
+p2 <- RStoolbox::ggR(hill) +
   geom_raster(
     data = juris.norm.df[!is.na(juris.norm.df$channel),],
     aes(
@@ -151,8 +150,7 @@ p2 <- RStoolbox::ggR(hills3) +
   scale_fill_viridis(labels = c("Impeded", "Channelized"), discrete = TRUE, begin = 0.33, end = 0.8,option = "D") +
   geom_sf(data = PAs, fill = "forestgreen") +
   geom_sf(data = as(sts.crop, "sf"), fill = NA, color="black")+
-  ggrepel::geom_text_repel(data = pa.cents, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), 
-                           nudge_x = -40000 , nudge_y = c(80000,90000), fontface="bold", color = "white")+
+  ggrepel::geom_label_repel(data = pa.cents, size = 2.25, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = c(-240000, 180000) , nudge_y = c(63000,99000), fontface="bold", fill ="white", color= "black")+
   guides(fill = guide_legend(title.position = "top", 
                              label.position="bottom", title = NULL)) +
   theme_map() +
@@ -161,7 +159,7 @@ p2 <- RStoolbox::ggR(hills3) +
         legend.justification = "center"  )
 
 
-p3 <- RStoolbox::ggR(hills3) +
+p3 <- RStoolbox::ggR(hill) +
   geom_raster(
     data = cattle.norm.df[!is.na(cattle.norm.df$channel),],
     aes(
@@ -174,8 +172,7 @@ p3 <- RStoolbox::ggR(hills3) +
   scale_fill_viridis(labels = c("Impeded", "Channelized"), discrete = TRUE, begin = 0.33, end = 0.8,option = "D") +
   geom_sf(data = PAs, fill = "forestgreen") +
   geom_sf(data = as(sts.crop, "sf"), fill = NA, color="black")+
-  ggrepel::geom_text_repel(data = pa.cents, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), 
-                           nudge_x = -40000 , nudge_y = c(80000,90000), fontface="bold", color = "white")+
+  ggrepel::geom_label_repel(data = pa.cents, size = 2.25, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = c(-240000, 180000) , nudge_y = c(63000,99000), fontface="bold", fill ="white", color= "black")+
   guides(fill = guide_legend(title.position = "top", 
                              label.position="bottom", title = NULL)) +
   theme_map() +
@@ -186,4 +183,4 @@ p3 <- RStoolbox::ggR(hills3) +
 combined.plot <- p1+p2+p3 + plot_layout(guides = "collect") +  plot_annotation(tag_levels = "A", tag_suffix = ")") & theme(legend.position = "bottom", legend.justification = "center",
                                                                                                          legend.margin=margin(0,0,0,0),
                                                                                                          legend.box.margin=margin(-15,-10,-10,-10)) 
-ggsave(here::here("plots/fig4.png"), plot =combined.plot)
+ggsave(here::here("plots/fig4.png"), plot =combined.plot, width = 10.5, height=7.5, units = "in", dpi = 400)

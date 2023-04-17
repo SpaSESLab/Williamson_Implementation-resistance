@@ -13,9 +13,11 @@ library(cowplot)
 library(ggsci)
 library(stringr)
 library(egg)
+library(geodata)
+library(terra)
 # load Circuitscape results -----------------------------------------------
 
-biophys.cs <- raster(here::here('data/ProcessedData/biophys/biophys_cum_curmap.asc'))
+biophys.cs <- rast(here::here('data/ProcessedData/biophys/biophys_cum_curmap.asc'))
 
 
 # Load centroids ----------------------------------------------------------
@@ -58,17 +60,17 @@ theme_map <- function(...) {
     )
 }
 # Load Elev data and calc hillshade ---------------------------------------
-elev <- getData('alt', country = 'USA')
-elev.proj <- projectRaster(elev[[1]], biophys.cs)
+
+elev.us <- geodata::elevation_30s(country="USA", path=tempdir())
+
+elev.proj <- terra::project(elev.us, biophys.cs)
 
 
 elev.crop <- crop(elev.proj, biophys.cs)
 elev.mod <- elev.crop *10
-slope <- terrain(elev.mod, opt='slope')
-aspect <- terrain(elev.mod, opt='aspect')
-hill = hillShade(slope, aspect, 40, 270)
-hill2 <- aggregate(hill , fact = 5 , method = "bilinear" )
-hills3 <- focal(hill2, w=matrix(1/9, nc=3, nr=3), mean)
+slope <- terrain(elev.mod, v='slope', unit="radians")
+aspect <- terrain(elev.mod, v='aspect', unit="radians")
+hill = shade(slope, aspect, 40, 270)
 
 
 # Get vectors for maps ----------------------------------------------------
@@ -87,14 +89,14 @@ conus <-  tigris::states() %>%
   st_transform(., crs(biophys.cs))
 
 
-sts.crop <- crop(sts, biophys.cs)
+sts.crop <- crop(sts, raster(biophys.cs))
 
 pa.cents <- rbind(as(origin.proj,"sf"), as(goals.proj, "sf"))
-pa.cents$lab <- c("Weminche \n Wilderness Area", "Yellowstone \n National Park")
+pa.cents$lab <- c("Weminuche \n Wilderness Area", "Yellowstone \n National Park")
 # Plot Circuitscape results -----------------------------------------------
 
 
-b_df <- biophys.cs %>%
+b_df <- raster(biophys.cs) %>%
   rasterToPoints %>%
   as.data.frame() %>%
   `colnames<-`(c("x", "y", "biophys"))
@@ -109,7 +111,7 @@ biophys.lcp.sf <- list(biophys.lcps, makeUniqueIDs = T) %>%
 
 my_blues = RColorBrewer::brewer.pal(n = 9, "Blues")[4:8]
 
-p.cs <- RStoolbox::ggR(hills3) +
+p.cs <- RStoolbox::ggR(hill) +
   geom_raster(
     data = b_df,
     aes(
@@ -121,35 +123,50 @@ p.cs <- RStoolbox::ggR(hills3) +
     interpolate = TRUE
   ) +
   scale_fill_viridis_c(option="B", 
-                       limits=c(-0.000000001,0.005), 
-                       breaks = c(0,0.005),
+                       limits=c(-0.000000001,0.01), 
+                       breaks = c(0,0.01),
                        labels = c("Low","High")) +
+  geom_sf(data = PAs, fill = "forestgreen") +
+  geom_sf(data = as(sts.crop, "sf"), fill = NA, color="white")+
+  ggrepel::geom_text_repel(data = pa.cents, size = 2.25, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = c(-9600000, 180000) , nudge_y = c(-69000,99000), fontface="bold", color = "white")+
+  guides(fill = guide_colorbar(nbin = 8,  title.position = "left", 
+                               label.position="right", title = "Current flow", barheight = 2.25, barwidth = 1))+
+  theme_map() + theme(legend.position = "left", 
+                      legend.box = "vertical", 
+                      legend.title = element_text(angle = 90, size = 7.5),
+                      legend.text = element_text(size = 7),
+                      plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), units = "pt"),
+                      legend.box.margin = unit(c(0, -0.1, 0.1, 0.1), units = "pt"))
+
+p.lcp <- RStoolbox::ggR(hill) +
   geom_sf(data=biophys.lcp.sf, aes(color=as.character(rank)), fill=NA, lwd=1.15) +
   scale_colour_manual(values=my_blues) +
   geom_sf(data = PAs, fill = "forestgreen") +
-  geom_sf(data = as(sts.crop, "sf"), fill = NA, color="white")+
-  ggrepel::geom_text_repel(data = pa.cents, size = 1.75, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = -40000 , nudge_y = c(80000,90000), fontface="bold", color = "white")+
-  guides(fill = guide_colorbar(nbin = 8,  title.position = "left", 
-                               label.position="right", title = "Current flow", barheight = 2.25, barwidth = 1), 
-         color = guide_legend(title.position = "left", 
+  geom_sf(data = as(sts.crop, "sf"), fill = NA, color="black")+
+  ggrepel::geom_label_repel(data = pa.cents, size = 2.25, aes(x = st_coordinates(pa.cents)[,1], y = st_coordinates(pa.cents)[,2], label=lab), nudge_x = c(-9600000, 180000) , nudge_y = c(-69000,99000), fontface="bold", color = "black", fill="white")+
+  guides(color = guide_legend(title.position = "left", 
                               label.position="right", title = "Cost rank", keywidth = 1, keyheight = 1))+
   theme_map() + theme(legend.position = "left", 
                       legend.box = "vertical", 
-                      legend.title = element_text(angle = 90, size = 3.75),
-                      legend.text = element_text(size = 3.5),
+                      legend.title = element_text(angle = 90, size = 7.5),
+                      legend.text = element_text(size = 7),
                       plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), units = "pt"),
                       legend.box.margin = unit(c(0, -0.1, 0.1, 0.1), units = "pt"))
+
+p2 <- p.lcp + p.cs +  plot_layout(guides = 'collect') + plot_annotation(tag_level = "A", tag_suffix = ")") 
 
 inset <- ggplot()+
   geom_sf(data=conus, fill="white") +
   geom_sf(data =st_as_sfc(st_bbox(biophys.cs)), fill=NA, color="red") +
   theme_map() +
   theme(panel.background = element_rect(fill = "gray", color = "black"),
-        plot.background = element_rect(fill = NA, color = NA))  
+        plot.background = element_rect(fill = NA, color = NA),
+        panel.grid.major = element_line(color = NA),
+        panel.grid.minor = element_line(color = NA))  
 
 
-p.combined <- ggdraw(p.cs) +
-  draw_plot(inset, x = 0.33, y = 0,  
+p.combined <- ggdraw(p2) +
+  draw_plot(inset, x = 0.6, y = 0.01,  
             width = 0.3, height = 0.15)
 
 
